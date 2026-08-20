@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>记忆翻牌</title>
+<style>
+:root {
+  --bg: #0c0c1a;
+  --bg-gradient-start: #0a0a1a;
+  --bg-gradient-mid: #1a1a2e;
+  --bg-gradient-end: #16213e;
+  --primary: #A78BFA;
+  --secondary: #5EEAD4;
+  --accent: #FB7185;
+  --success: #86EFAC;
+  --warning: #FCD34D;
+  --glass: rgba(255,255,255,0.06);
+  --glass-border: rgba(255,255,255,0.12);
+  --glass-highlight: rgba(255,255,255,0.03);
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --shadow-glow: 0 0 20px rgba(167,139,250,0.3);
+  --shadow-soft: 0 8px 32px rgba(0,0,0,0.25);
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body {
+  width:100%; height:100%; overflow:hidden;
+  background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-mid) 50%, var(--bg-gradient-end) 100%);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: var(--text-primary);
+  user-select: none;
+}
+#gameCanvas {
+  position: fixed; top:0; left:0; width:100%; height:100%; z-index:1;
+}
+#uiLayer {
+  position: fixed; top:0; left:0; width:100%; height:100%; z-index:10;
+  pointer-events: none;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+#uiLayer > * { pointer-events: auto; }
+.topBar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 24px;
+  background: linear-gradient(180deg, rgba(10,10,26,0.7) 0%, transparent 100%);
+}
+.topBar .title {
+  font-size: 20px; font-weight: 800;
+  color: var(--primary);
+  text-shadow: 0 0 20px rgba(167,139,250,0.4);
+  letter-spacing: 2px;
+}
+.topBar .stats {
+  display: flex; gap: 12px; font-size: 13px;
+}
+.topBar .stat {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  padding: 8px 16px;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: var(--shadow-soft), inset 0 1px 0 var(--glass-highlight);
+  color: var(--text-secondary);
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+.topBar .stat:hover {
+  border-color: rgba(167,139,250,0.3);
+  box-shadow: var(--shadow-soft), 0 0 15px rgba(167,139,250,0.15);
+}
+.bottomBar {
+  display: flex; justify-content: center; gap: 14px;
+  padding: 18px;
+  background: linear-gradient(0deg, rgba(10,10,26,0.7) 0%, transparent 100%);
+}
+.btn {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  color: var(--primary);
+  padding: 12px 24px;
+  border-radius: 16px;
+  font-size: 14px; font-weight: 700;
+  cursor: pointer; pointer-events: auto;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.5px;
+  box-shadow: var(--shadow-soft), inset 0 1px 0 var(--glass-highlight);
+  position: relative;
+  overflow: hidden;
+}
+.btn::before {
+  content: '';
+  position: absolute; top:0; left:0; right:0; bottom:0;
+  background: linear-gradient(135deg, rgba(167,139,250,0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.btn:hover {
+  background: rgba(167,139,250,0.12);
+  border-color: rgba(167,139,250,0.35);
+  box-shadow: var(--shadow-soft), 0 0 25px rgba(167,139,250,0.25), inset 0 1px 0 rgba(255,255,255,0.08);
+  transform: translateY(-3px);
+}
+.btn:hover::before { opacity: 1; }
+.btn:active { transform: translateY(-1px); }
+.btn.pink { color: var(--accent); border-color: rgba(251,113,133,0.25); }
+.btn.pink:hover { background: rgba(251,113,133,0.12); border-color: rgba(251,113,133,0.4); box-shadow: var(--shadow-soft), 0 0 25px rgba(251,113,133,0.2); }
+.btn.green { color: var(--success); border-color: rgba(134,239,172,0.25); }
+.btn.green:hover { background: rgba(134,239,172,0.12); border-color: rgba(134,239,172,0.4); box-shadow: var(--shadow-soft), 0 0 25px rgba(134,239,172,0.2); }
+.modal {
+  position: fixed; top:0; left:0; width:100%; height:100%;
+  background: rgba(10,10,26,0.75);
+  display: none; justify-content: center; align-items: center; z-index: 100;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.modal.active { display: flex; }
+.modalBox {
+  background: linear-gradient(135deg, rgba(30,30,50,0.85), rgba(20,20,35,0.9));
+  border: 1px solid var(--glass-border);
+  border-radius: 28px;
+  padding: 32px;
+  max-width: 90%; width: 440px;
+  box-shadow: var(--shadow-soft), 0 0 60px rgba(167,139,250,0.1);
+  max-height: 80vh; overflow-y: auto;
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+}
+.modalBox h2 {
+  color: var(--primary);
+  text-align: center; margin-bottom: 24px;
+  text-shadow: 0 0 20px rgba(167,139,250,0.3);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.shopItem, .achieveItem {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px; margin: 10px 0;
+  background: var(--glass);
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+.shopItem:hover, .achieveItem:hover {
+  border-color: rgba(167,139,250,0.2);
+  transform: translateX(4px);
+}
+.shopItem.owned { opacity: 0.45; }
+.shopItem button, .achieveItem .status {
+  background: var(--primary); color: #0c0c1a;
+  border: none; padding: 8px 16px; border-radius: 12px;
+  font-weight: 800; cursor: pointer;
+  box-shadow: 0 4px 15px rgba(167,139,250,0.3);
+  transition: all 0.2s ease;
+}
+.shopItem button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(167,139,250,0.4);
+}
+.shopItem.owned button { background: #475569; color: #94A3B8; cursor: default; box-shadow: none; }
+.shopItem button:disabled { background: #334155; color: #64748B; cursor: not-allowed; box-shadow: none; }
+.achieveItem.locked { opacity: 0.35; }
+.achieveItem.unlocked { border-color: rgba(94,234,212,0.3); background: rgba(94,234,212,0.05); }
+.achieveItem.unlocked .status { background: var(--success); color: #0c0c1a; box-shadow: 0 4px 15px rgba(134,239,172,0.3); }
+.toast {
+  position: fixed; top: 90px; left: 50%; transform: translateX(-50%);
+  background: var(--glass); border: 1px solid rgba(134,239,172,0.3);
+  color: var(--success); padding: 14px 28px; border-radius: 16px;
+  font-weight: 800; z-index: 200; opacity: 0; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none; backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: var(--shadow-soft), 0 0 30px rgba(134,239,172,0.15);
+  font-size: 15px;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.signinBox { text-align: center; }
+.signinReward { font-size: 52px; margin: 20px 0; color: var(--warning); text-shadow: 0 0 30px rgba(252,211,77,0.3); }
+.streak { color: var(--accent); font-weight: 800; margin: 12px 0; font-size: 16px; }
+.gameOverBox { text-align: center; }
+.gameOverBox .finalScore { font-size: 56px; color: var(--primary); margin: 20px 0; text-shadow: 0 0 30px rgba(167,139,250,0.4); font-weight: 900; }
+.startScreen {
+  position: fixed; top:0; left:0; width:100%; height:100%;
+  background: linear-gradient(135deg, rgba(10,10,26,0.92), rgba(22,33,62,0.92));
+  display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 50;
+  backdrop-filter: blur(20px);
+}
+.startScreen h1 {
+  font-size: 48px; color: var(--primary);
+  text-shadow: 0 0 40px rgba(167,139,250,0.35), 0 0 80px rgba(167,139,250,0.15);
+  margin-bottom: 16px; letter-spacing: 3px;
+  font-weight: 900;
+}
+.startScreen p { color: var(--text-secondary); margin-bottom: 36px; font-size: 16px; letter-spacing: 0.5px; }
+.bigBtn {
+  background: linear-gradient(135deg, var(--primary), #C084FC);
+  color: #0c0c1a; border: none; padding: 18px 52px; border-radius: 20px;
+  font-size: 20px; font-weight: 900; cursor: pointer;
+  box-shadow: 0 8px 30px rgba(167,139,250,0.35), 0 0 60px rgba(167,139,250,0.15);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 1px;
+  position: relative;
+  overflow: hidden;
+}
+.bigBtn::after {
+  content: '';
+  position: absolute; top:0; left:-100%; width:100%; height:100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s ease;
+}
+.bigBtn:hover {
+  transform: scale(1.06) translateY(-2px);
+  box-shadow: 0 12px 40px rgba(167,139,250,0.45), 0 0 80px rgba(167,139,250,0.2);
+}
+.bigBtn:hover::after { left: 100%; }
+.bigBtn:active { transform: scale(1.02) translateY(0); }
+@media (max-width: 600px) {
+  .topBar { padding: 10px 14px; }
+  .topBar .title { font-size: 15px; }
+  .topBar .stats { gap: 6px; font-size: 11px; }
+  .topBar .stat { padding: 6px 10px; }
+  .btn { padding: 10px 16px; font-size: 12px; border-radius: 12px; }
+  .startScreen h1 { font-size: 32px; }
+  .startScreen p { font-size: 14px; }
+  .bigBtn { padding: 14px 36px; font-size: 17px; }
+  .modalBox { padding: 24px; border-radius: 22px; }
+}
+</style>
+<style>
+.memoryGrid { display: grid; gap: 10px; justify-content: center; margin-top: 80px; }
+.card { width: 80px; height: 80px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px; display: flex; justify-content: center; align-items: center; font-size: 36px; cursor: pointer; transition: all 0.3s; backdrop-filter: blur(10px); position: relative; }
+.card:hover { box-shadow: 0 0 15px rgba(0,248,255,0.3); }
+.card.flipped { background: rgba(0,248,255,0.1); transform: rotateY(180deg); }
+.card.matched { background: rgba(57,255,20,0.2); border-color: var(--success); box-shadow: 0 0 20px rgba(57,255,20,0.4); }
+.card.disturb { animation: shake 0.5s infinite; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
+.gameInfo { text-align: center; margin-top: 20px; color: #888; }
+@media (max-width: 500px) { .card { width: 65px; height: 65px; font-size: 28px; } }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="uiLayer">
+  <div class="topBar">
+    <div class="title">🃏 记忆翻牌</div>
+    <div class="stats">
+      <div class="stat" id="scoreDisplay">得分: 0</div>
+      <div class="stat" id="levelDisplay">关卡: 1</div>
+      <div class="stat" id="coinDisplay">💰 0</div>
+    </div>
+  </div>
+  <div class="bottomBar">
+    <button class="btn" onclick="restartGame()">🔄 重新开始</button>
+    <button class="btn" onclick="openShop()">🛒 商店</button>
+    <button class="btn pink" onclick="checkDailySignin()">📅 每日签到</button>
+    <button class="btn" onclick="openAchievements()">🏆 成就</button>
+  </div>
+</div>
+
+<div class="startScreen" id="startScreen">
+  <h1>🃏 记忆翻牌</h1>
+  <p>翻转卡片，找到相同的配对！</p>
+  <button class="bigBtn" onclick="startGame()">开始游戏</button>
+</div>
+
+<div class="modal" id="winModal">
+  <div class="modalBox gameOverBox">
+    <h2>🎉 关卡完成！</h2>
+    <div class="finalScore" id="winScore">0</div>
+    <button class="bigBtn" onclick="nextLevel(); closeModal('winModal');" style="margin-top:20px">下一关</button>
+  </div>
+</div>
+
+<div class="modal" id="shopModal">
+  <div class="modalBox">
+    <h2>🛒 商店</h2>
+    <div id="shopItems"></div>
+    <button class="btn" onclick="closeModal('shopModal')" style="width:100%;margin-top:16px">关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="achieveModal">
+  <div class="modalBox">
+    <h2>🏆 成就</h2>
+    <div id="achieveList"></div>
+    <button class="btn" onclick="closeModal('achieveModal')" style="width:100%;margin-top:16px">关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="signinModal">
+  <div class="modalBox signinBox">
+    <h2>📅 每日签到</h2>
+    <div class="signinReward" id="signinReward">+30 金币</div>
+    <div class="streak" id="signinStreak">连续签到 1 天</div>
+    <div id="signinBonus" style="color:var(--success);font-weight:700;"></div>
+    <button class="btn" onclick="closeModal('signinModal')" style="margin-top:20px">领取</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'neonGamesData';
+function loadData() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) return JSON.parse(raw);
+  return { coins: 0, skins: {}, effects: {}, achievements: {}, signin: { last: '', streak: 0 }, highScores: {} };
+}
+function saveData(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function getData() { window._gData = loadData(); return window._gData; }
+function setData(d) { window._gData = d; saveData(d); }
+function addCoins(n) { const d=getData(); d.coins+=n; setData(d); updateTopBar(); }
+function spendCoins(n) { const d=getData(); if(d.coins>=n){d.coins-=n;setData(d);updateTopBar();return true;}return false; }
+function unlock(type, id) { const d=getData(); if(!d[type])d[type]={}; d[type][id]=true; setData(d); }
+function hasUnlock(type, id) { const d=getData(); return d[type] && d[type][id]; }
+function setHigh(game, score) { const d=getData(); if(!d.highScores[game]||score>d.highScores[game]){d.highScores[game]=score;setData(d);} }
+function getHigh(game) { const d=getData(); return d.highScores[game]||0; }
+function checkAchievement(id, name, desc) {
+  const d=getData(); if(!d.achievements)d.achievements={};
+  if(!d.achievements[id]){ d.achievements[id]=true; setData(d); showToast('🏆 成就解锁: '+name); }
+}
+function updateTopBar() {
+  const d=getData();
+  const el = document.getElementById('coinDisplay');
+  if(el) el.textContent = '💰 ' + d.coins;
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function checkDailySignin() {
+  const d=getData(); const today = new Date().toDateString();
+  if(d.signin.last === today) return false;
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+  if(d.signin.last === yesterday.toDateString()) d.signin.streak++;
+  else d.signin.streak = 1;
+  d.signin.last = today; setData(d);
+  const rewards = [50, 60, 70, 80, 90, 100, 200];
+  const base = rewards[Math.min(d.signin.streak-1, 6)];
+  const bonus = d.signin.streak >= 7 ? 200 : 0;
+  addCoins(base + bonus);
+  document.getElementById('signinStreak').textContent = '连续签到 ' + d.signin.streak + ' 天';
+  document.getElementById('signinReward').textContent = '🎁 +' + (base+bonus) + ' 金币';
+  if(d.signin.streak >= 7) document.getElementById('signinBonus').textContent = '额外奖励: 限定道具已解锁！';
+  openModal('signinModal');
+  return true;
+}
+function renderShop(items, type) {
+  const container = document.getElementById('shopItems');
+  container.innerHTML = '';
+  items.forEach(it => {
+    const owned = hasUnlock(type, it.id);
+    const div = document.createElement('div');
+    div.className = 'shopItem ' + (owned?'owned':'');
+    div.innerHTML = '<div><div style="font-weight:700">'+it.name+'</div><div style="font-size:12px;color:#888">'+it.desc+'</div></div><button '+(owned?'disabled':'')+' onclick="buyShopItem(this,'+it.price+',\''+type+'\',\''+it.id+'\')">'+(owned?'已拥有':it.price+'💰')+'</button>';
+    container.appendChild(div);
+  });
+}
+function buyShopItem(btn, price, type, id) {
+  if(spendCoins(price)){ unlock(type,id); btn.textContent='已拥有'; btn.disabled=true; btn.parentElement.classList.add('owned'); showToast('购买成功！'); }
+  else { showToast('金币不足！'); }
+}
+function renderAchievements(list) {
+  const container = document.getElementById('achieveList');
+  const d = getData();
+  container.innerHTML = '';
+  list.forEach(a => {
+    const unlocked = d.achievements && d.achievements[a.id];
+    const div = document.createElement('div');
+    div.className = 'achieveItem ' + (unlocked?'unlocked':'locked');
+    div.innerHTML = '<div><div style="font-weight:700">'+a.name+'</div><div style="font-size:12px;color:#888">'+a.desc+'</div></div><div class="status">'+(unlocked?'✅ 已解锁':'🔒 未解锁')+'</div>';
+    container.appendChild(div);
+  });
+}
+</script>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let W, H, gameState = 'menu', score = 0, level = 1, cards = [], flipped = [], matched = 0, moves = 0;
+let showTime = 1500, hasExtraTime = false, hasHint = false, totalMatched = 0, startTime = 0;
+const emojis = ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🐤','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🐛','🦋'];
+
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize); resize();
+
+function startGame() {
+  document.getElementById('startScreen').style.display = 'none';
+  gameState = 'playing'; score = 0; level = 1; showTime = 1500; hasExtraTime = false;
+  initLevel(); updateUI();
+}
+
+function restartGame() {
+  startGame();
+}
+
+function nextLevel() {
+  level++;
+  showTime = Math.max(500, 1500 - (level - 1) * 100);
+  initLevel(); updateUI();
+}
+
+function updateUI() {
+  document.getElementById('scoreDisplay').textContent = '得分: ' + score;
+  document.getElementById('levelDisplay').textContent = '关卡: ' + level;
+  updateTopBar();
+}
+
+function initLevel() {
+  const sizes = [[4,4],[4,6],[6,6],[6,8],[8,8]];
+  const [cols, rows] = sizes[Math.min(level-1, sizes.length-1)];
+  const total = cols * rows;
+  const pairs = total / 2;
+  const used = emojis.slice(0, pairs);
+  const deck = [...used, ...used].sort(() => Math.random() - 0.5);
+
+  cards = [];
+  for(let r=0;r<rows;r++) {
+    for(let c=0;c<cols;c++) {
+      const isDisturb = level >= 3 && Math.random() < 0.1;
+      cards.push({
+        emoji: deck[r*cols+c],
+        flipped: false,
+        matched: false,
+        isDisturb,
+        id: r*cols+c
+      });
+    }
+  }
+  flipped = []; matched = 0; moves = 0; startTime = Date.now();
+  renderGrid(cols, rows);
+
+  // show all briefly
+  cards.forEach(c => c.flipped = true);
+  renderGrid(cols, rows);
+  setTimeout(() => {
+    cards.forEach(c => c.flipped = false);
+    renderGrid(cols, rows);
+  }, showTime + (hasExtraTime ? 1000 : 0));
+}
+
+function renderGrid(cols, rows) {
+  const container = document.createElement('div');
+  container.className = 'memoryGrid';
+  container.id = 'memoryGrid';
+  container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  container.style.maxWidth = cols * 90 + 'px';
+  container.style.margin = '80px auto 0';
+
+  const old = document.getElementById('memoryGrid');
+  if (old) old.remove();
+
+  cards.forEach((card, i) => {
+    const div = document.createElement('div');
+    div.className = 'card ' + (card.flipped ? 'flipped ' : '') + (card.matched ? 'matched ' : '') + (card.isDisturb && card.flipped ? 'disturb ' : '');
+    div.textContent = card.flipped || card.matched ? card.emoji : '?';
+    div.onclick = () => flipCard(i);
+    container.appendChild(div);
+  });
+  document.body.appendChild(container);
+}
+
+function flipCard(idx) {
+  if (gameState !== 'playing') return;
+  const card = cards[idx];
+  if (card.flipped || card.matched || flipped.length >= 2) return;
+
+  card.flipped = true;
+  flipped.push(idx);
+  moves++;
+  renderGrid(Math.sqrt(cards.length) || 4, cards.length / (Math.sqrt(cards.length) || 4));
+
+  if (flipped.length === 2) {
+    const [a, b] = flipped;
+    if (cards[a].emoji === cards[b].emoji) {
+      cards[a].matched = true; cards[b].matched = true;
+      matched++; totalMatched++;
+      score += 5; addCoins(5);
+      flipped = [];
+
+      if (matched === cards.length / 2) {
+        const timeBonus = Math.max(0, 10 - Math.floor((Date.now() - startTime)/1000));
+        score += timeBonus * 10;
+        addCoins(100 + timeBonus * 10);
+        document.getElementById('winScore').textContent = score;
+        openModal('winModal');
+      }
+    } else {
+      setTimeout(() => {
+        cards[a].flipped = false; cards[b].flipped = false;
+        flipped = [];
+        renderGrid(Math.sqrt(cards.length) || 4, cards.length / (Math.sqrt(cards.length) || 4));
+      }, 1000);
+    }
+  }
+  updateUI();
+}
+
+const shopItems = [
+  {id:'animal',name:'主题·动物',desc:'动物图标主题',price:120},
+  {id:'food',name:'主题·食物',desc:'食物图标主题',price:120},
+  {id:'space',name:'主题·太空',desc:'太空图标主题',price:120},
+  {id:'magic',name:'主题·魔法',desc:'魔法图标主题',price:120},
+  {id:'sound1',name:'音效·电子',desc:'电子翻卡音效',price:80},
+  {id:'sound2',name:'音效·复古',desc:'复古翻卡音效',price:80},
+  {id:'hint',name:'提示道具',desc:'高亮两张未匹配卡',price:150},
+  {id:'extratime',name:'额外时间',desc:'延长翻卡显示时间',price:0},
+];
+function openShop() { renderShop(shopItems, 'themes'); openModal('shopModal'); }
+function buyShopItem(btn, price, type, id) {
+  if (id === 'hint') { if(spendCoins(price)){ useHint(); showToast('提示已使用！'); closeModal('shopModal'); return; } }
+  if (id === 'extratime') { hasExtraTime = true; showToast('额外时间已激活！'); closeModal('shopModal'); return; }
+  if (spendCoins(price)) { unlock(type, id); btn.textContent='已拥有'; btn.disabled=true; btn.parentElement.classList.add('owned'); showToast('购买成功！'); }
+  else { showToast('金币不足！'); }
+}
+
+function useHint() {
+  const unmatched = cards.filter((c,i) => !c.matched && !c.flipped).map((c,i) => i);
+  if (unmatched.length >= 2) {
+    const a = unmatched[0], b = unmatched.find(i => cards[i].emoji === cards[a].emoji);
+    if (b !== undefined) {
+      document.querySelectorAll('.card')[a].style.borderColor = 'var(--success)';
+      document.querySelectorAll('.card')[b].style.borderColor = 'var(--success)';
+      setTimeout(() => {
+        document.querySelectorAll('.card')[a].style.borderColor = '';
+        document.querySelectorAll('.card')[b].style.borderColor = '';
+      }, 2000);
+    }
+  }
+}
+
+const achievements = [
+  {id:'memory_master',name:'记忆大师',desc:'在最少步数内完成一关'},
+  {id:'card_collector',name:'卡片收集者',desc:'解锁所有卡片主题'},
+  {id:'speed_run',name:'速通玩家',desc:'10秒内完成4x4关卡'},
+];
+function openAchievements() { renderAchievements(achievements); openModal('achieveModal'); }
+
+getData(); updateTopBar();
+</script>
+<script src="/shared/auth.js"></script>
+<script>
+// ===== 云端存档 =====
+async function cloudSave() {
+  if (!GameAuth.isLoggedIn()) return;
+  const d = getData();
+  await GameAuth.saveProgress('memory', {
+    bestTime: bestTime,
+    bestMoves: bestMoves,
+    coins: d.coins,
+    timestamp: Date.now()
+  });
+}
+async function cloudLoad() {
+  if (!GameAuth.isLoggedIn()) return;
+  const result = await GameAuth.loadProgress('memory');
+  if (result.success && result.data) {
+    const data = result.data;
+    if (data.coins !== undefined) {
+      const d = getData(); d.coins = data.coins; setData(d); updateTopBar();
+    }
+  }
+}
+window.addEventListener('load', cloudLoad);
+// ===== 云端存档结束 =====
+
+</script>
+</body>
+</html>

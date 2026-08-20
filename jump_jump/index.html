@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>跳一跳</title>
+<style>
+:root {
+  --bg: #0c0c1a;
+  --bg-gradient-start: #0a0a1a;
+  --bg-gradient-mid: #1a1a2e;
+  --bg-gradient-end: #16213e;
+  --primary: #A78BFA;
+  --secondary: #5EEAD4;
+  --accent: #FB7185;
+  --success: #86EFAC;
+  --warning: #FCD34D;
+  --glass: rgba(255,255,255,0.06);
+  --glass-border: rgba(255,255,255,0.12);
+  --glass-highlight: rgba(255,255,255,0.03);
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --shadow-glow: 0 0 20px rgba(167,139,250,0.3);
+  --shadow-soft: 0 8px 32px rgba(0,0,0,0.25);
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body {
+  width:100%; height:100%; overflow:hidden;
+  background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-mid) 50%, var(--bg-gradient-end) 100%);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: var(--text-primary);
+  user-select: none;
+}
+#gameCanvas {
+  position: fixed; top:0; left:0; width:100%; height:100%; z-index:1;
+}
+#uiLayer {
+  position: fixed; top:0; left:0; width:100%; height:100%; z-index:10;
+  pointer-events: none;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+#uiLayer > * { pointer-events: auto; }
+.topBar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 24px;
+  background: linear-gradient(180deg, rgba(10,10,26,0.7) 0%, transparent 100%);
+}
+.topBar .title {
+  font-size: 20px; font-weight: 800;
+  color: var(--primary);
+  text-shadow: 0 0 20px rgba(167,139,250,0.4);
+  letter-spacing: 2px;
+}
+.topBar .stats {
+  display: flex; gap: 12px; font-size: 13px;
+}
+.topBar .stat {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  padding: 8px 16px;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: var(--shadow-soft), inset 0 1px 0 var(--glass-highlight);
+  color: var(--text-secondary);
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+.topBar .stat:hover {
+  border-color: rgba(167,139,250,0.3);
+  box-shadow: var(--shadow-soft), 0 0 15px rgba(167,139,250,0.15);
+}
+.bottomBar {
+  display: flex; justify-content: center; gap: 14px;
+  padding: 18px;
+  background: linear-gradient(0deg, rgba(10,10,26,0.7) 0%, transparent 100%);
+}
+.btn {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  color: var(--primary);
+  padding: 12px 24px;
+  border-radius: 16px;
+  font-size: 14px; font-weight: 700;
+  cursor: pointer; pointer-events: auto;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.5px;
+  box-shadow: var(--shadow-soft), inset 0 1px 0 var(--glass-highlight);
+  position: relative;
+  overflow: hidden;
+}
+.btn::before {
+  content: '';
+  position: absolute; top:0; left:0; right:0; bottom:0;
+  background: linear-gradient(135deg, rgba(167,139,250,0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.btn:hover {
+  background: rgba(167,139,250,0.12);
+  border-color: rgba(167,139,250,0.35);
+  box-shadow: var(--shadow-soft), 0 0 25px rgba(167,139,250,0.25), inset 0 1px 0 rgba(255,255,255,0.08);
+  transform: translateY(-3px);
+}
+.btn:hover::before { opacity: 1; }
+.btn:active { transform: translateY(-1px); }
+.btn.pink { color: var(--accent); border-color: rgba(251,113,133,0.25); }
+.btn.pink:hover { background: rgba(251,113,133,0.12); border-color: rgba(251,113,133,0.4); box-shadow: var(--shadow-soft), 0 0 25px rgba(251,113,133,0.2); }
+.btn.green { color: var(--success); border-color: rgba(134,239,172,0.25); }
+.btn.green:hover { background: rgba(134,239,172,0.12); border-color: rgba(134,239,172,0.4); box-shadow: var(--shadow-soft), 0 0 25px rgba(134,239,172,0.2); }
+.modal {
+  position: fixed; top:0; left:0; width:100%; height:100%;
+  background: rgba(10,10,26,0.75);
+  display: none; justify-content: center; align-items: center; z-index: 100;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.modal.active { display: flex; }
+.modalBox {
+  background: linear-gradient(135deg, rgba(30,30,50,0.85), rgba(20,20,35,0.9));
+  border: 1px solid var(--glass-border);
+  border-radius: 28px;
+  padding: 32px;
+  max-width: 90%; width: 440px;
+  box-shadow: var(--shadow-soft), 0 0 60px rgba(167,139,250,0.1);
+  max-height: 80vh; overflow-y: auto;
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+}
+.modalBox h2 {
+  color: var(--primary);
+  text-align: center; margin-bottom: 24px;
+  text-shadow: 0 0 20px rgba(167,139,250,0.3);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.shopItem, .achieveItem {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px; margin: 10px 0;
+  background: var(--glass);
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+.shopItem:hover, .achieveItem:hover {
+  border-color: rgba(167,139,250,0.2);
+  transform: translateX(4px);
+}
+.shopItem.owned { opacity: 0.45; }
+.shopItem button, .achieveItem .status {
+  background: var(--primary); color: #0c0c1a;
+  border: none; padding: 8px 16px; border-radius: 12px;
+  font-weight: 800; cursor: pointer;
+  box-shadow: 0 4px 15px rgba(167,139,250,0.3);
+  transition: all 0.2s ease;
+}
+.shopItem button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(167,139,250,0.4);
+}
+.shopItem.owned button { background: #475569; color: #94A3B8; cursor: default; box-shadow: none; }
+.shopItem button:disabled { background: #334155; color: #64748B; cursor: not-allowed; box-shadow: none; }
+.achieveItem.locked { opacity: 0.35; }
+.achieveItem.unlocked { border-color: rgba(94,234,212,0.3); background: rgba(94,234,212,0.05); }
+.achieveItem.unlocked .status { background: var(--success); color: #0c0c1a; box-shadow: 0 4px 15px rgba(134,239,172,0.3); }
+.toast {
+  position: fixed; top: 90px; left: 50%; transform: translateX(-50%);
+  background: var(--glass); border: 1px solid rgba(134,239,172,0.3);
+  color: var(--success); padding: 14px 28px; border-radius: 16px;
+  font-weight: 800; z-index: 200; opacity: 0; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none; backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: var(--shadow-soft), 0 0 30px rgba(134,239,172,0.15);
+  font-size: 15px;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.signinBox { text-align: center; }
+.signinReward { font-size: 52px; margin: 20px 0; color: var(--warning); text-shadow: 0 0 30px rgba(252,211,77,0.3); }
+.streak { color: var(--accent); font-weight: 800; margin: 12px 0; font-size: 16px; }
+.gameOverBox { text-align: center; }
+.gameOverBox .finalScore { font-size: 56px; color: var(--primary); margin: 20px 0; text-shadow: 0 0 30px rgba(167,139,250,0.4); font-weight: 900; }
+.startScreen {
+  position: fixed; top:0; left:0; width:100%; height:100%;
+  background: linear-gradient(135deg, rgba(10,10,26,0.92), rgba(22,33,62,0.92));
+  display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 50;
+  backdrop-filter: blur(20px);
+}
+.startScreen h1 {
+  font-size: 48px; color: var(--primary);
+  text-shadow: 0 0 40px rgba(167,139,250,0.35), 0 0 80px rgba(167,139,250,0.15);
+  margin-bottom: 16px; letter-spacing: 3px;
+  font-weight: 900;
+}
+.startScreen p { color: var(--text-secondary); margin-bottom: 36px; font-size: 16px; letter-spacing: 0.5px; }
+.bigBtn {
+  background: linear-gradient(135deg, var(--primary), #C084FC);
+  color: #0c0c1a; border: none; padding: 18px 52px; border-radius: 20px;
+  font-size: 20px; font-weight: 900; cursor: pointer;
+  box-shadow: 0 8px 30px rgba(167,139,250,0.35), 0 0 60px rgba(167,139,250,0.15);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 1px;
+  position: relative;
+  overflow: hidden;
+}
+.bigBtn::after {
+  content: '';
+  position: absolute; top:0; left:-100%; width:100%; height:100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s ease;
+}
+.bigBtn:hover {
+  transform: scale(1.06) translateY(-2px);
+  box-shadow: 0 12px 40px rgba(167,139,250,0.45), 0 0 80px rgba(167,139,250,0.2);
+}
+.bigBtn:hover::after { left: 100%; }
+.bigBtn:active { transform: scale(1.02) translateY(0); }
+@media (max-width: 600px) {
+  .topBar { padding: 10px 14px; }
+  .topBar .title { font-size: 15px; }
+  .topBar .stats { gap: 6px; font-size: 11px; }
+  .topBar .stat { padding: 6px 10px; }
+  .btn { padding: 10px 16px; font-size: 12px; border-radius: 12px; }
+  .startScreen h1 { font-size: 32px; }
+  .startScreen p { font-size: 14px; }
+  .bigBtn { padding: 14px 36px; font-size: 17px; }
+  .modalBox { padding: 24px; border-radius: 22px; }
+}
+</style>
+<style>
+#gameCanvas { touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="uiLayer">
+  <div class="topBar">
+    <div class="title">🏀 跳一跳</div>
+    <div class="stats">
+      <div class="stat" id="scoreDisplay">得分: 0</div>
+      <div class="stat" id="levelDisplay">关卡: 1</div>
+      <div class="stat" id="coinDisplay">💰 0</div>
+    </div>
+  </div>
+  <div class="bottomBar">
+    <button class="btn" onclick="restartGame()">🔄 重新开始</button>
+    <button class="btn" onclick="openShop()">🛒 商店</button>
+    <button class="btn pink" onclick="checkDailySignin()">📅 每日签到</button>
+    <button class="btn" onclick="openAchievements()">🏆 成就</button>
+  </div>
+</div>
+
+<div class="startScreen" id="startScreen">
+  <h1>🏀 跳一跳</h1>
+  <p>按住蓄力，松开跳跃，落在平台上！</p>
+  <button class="bigBtn" onclick="startGame()">开始游戏</button>
+</div>
+
+<div class="modal" id="gameOverModal">
+  <div class="modalBox gameOverBox">
+    <h2>💥 游戏结束</h2>
+    <div class="finalScore" id="finalScore">0</div>
+    <p>最高分: <span id="highScore">0</span></p>
+    <button class="bigBtn" onclick="restartGame(); closeModal('gameOverModal');" style="margin-top:20px">再来一局</button>
+  </div>
+</div>
+
+<div class="modal" id="shopModal">
+  <div class="modalBox">
+    <h2>🛒 商店</h2>
+    <div id="shopItems"></div>
+    <button class="btn" onclick="closeModal('shopModal')" style="width:100%;margin-top:16px">关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="achieveModal">
+  <div class="modalBox">
+    <h2>🏆 成就</h2>
+    <div id="achieveList"></div>
+    <button class="btn" onclick="closeModal('achieveModal')" style="width:100%;margin-top:16px">关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="signinModal">
+  <div class="modalBox signinBox">
+    <h2>📅 每日签到</h2>
+    <div class="signinReward" id="signinReward">+40 金币</div>
+    <div class="streak" id="signinStreak">连续签到 1 天</div>
+    <div id="signinBonus" style="color:var(--success);font-weight:700;"></div>
+    <button class="btn" onclick="closeModal('signinModal')" style="margin-top:20px">领取</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'neonGamesData';
+function loadData() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) return JSON.parse(raw);
+  return { coins: 0, skins: {}, effects: {}, achievements: {}, signin: { last: '', streak: 0 }, highScores: {} };
+}
+function saveData(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function getData() { window._gData = loadData(); return window._gData; }
+function setData(d) { window._gData = d; saveData(d); }
+function addCoins(n) { const d=getData(); d.coins+=n; setData(d); updateTopBar(); }
+function spendCoins(n) { const d=getData(); if(d.coins>=n){d.coins-=n;setData(d);updateTopBar();return true;}return false; }
+function unlock(type, id) { const d=getData(); if(!d[type])d[type]={}; d[type][id]=true; setData(d); }
+function hasUnlock(type, id) { const d=getData(); return d[type] && d[type][id]; }
+function setHigh(game, score) { const d=getData(); if(!d.highScores[game]||score>d.highScores[game]){d.highScores[game]=score;setData(d);} }
+function getHigh(game) { const d=getData(); return d.highScores[game]||0; }
+function checkAchievement(id, name, desc) {
+  const d=getData(); if(!d.achievements)d.achievements={};
+  if(!d.achievements[id]){ d.achievements[id]=true; setData(d); showToast('🏆 成就解锁: '+name); }
+}
+function updateTopBar() {
+  const d=getData();
+  const el = document.getElementById('coinDisplay');
+  if(el) el.textContent = '💰 ' + d.coins;
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function checkDailySignin() {
+  const d=getData(); const today = new Date().toDateString();
+  if(d.signin.last === today) return false;
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+  if(d.signin.last === yesterday.toDateString()) d.signin.streak++;
+  else d.signin.streak = 1;
+  d.signin.last = today; setData(d);
+  const rewards = [50, 60, 70, 80, 90, 100, 200];
+  const base = rewards[Math.min(d.signin.streak-1, 6)];
+  const bonus = d.signin.streak >= 7 ? 200 : 0;
+  addCoins(base + bonus);
+  document.getElementById('signinStreak').textContent = '连续签到 ' + d.signin.streak + ' 天';
+  document.getElementById('signinReward').textContent = '🎁 +' + (base+bonus) + ' 金币';
+  if(d.signin.streak >= 7) document.getElementById('signinBonus').textContent = '额外奖励: 限定道具已解锁！';
+  openModal('signinModal');
+  return true;
+}
+function renderShop(items, type) {
+  const container = document.getElementById('shopItems');
+  container.innerHTML = '';
+  items.forEach(it => {
+    const owned = hasUnlock(type, it.id);
+    const div = document.createElement('div');
+    div.className = 'shopItem ' + (owned?'owned':'');
+    div.innerHTML = '<div><div style="font-weight:700">'+it.name+'</div><div style="font-size:12px;color:#888">'+it.desc+'</div></div><button '+(owned?'disabled':'')+' onclick="buyShopItem(this,'+it.price+',\''+type+'\',\''+it.id+'\')">'+(owned?'已拥有':it.price+'💰')+'</button>';
+    container.appendChild(div);
+  });
+}
+function buyShopItem(btn, price, type, id) {
+  if(spendCoins(price)){ unlock(type,id); btn.textContent='已拥有'; btn.disabled=true; btn.parentElement.classList.add('owned'); showToast('购买成功！'); }
+  else { showToast('金币不足！'); }
+}
+function renderAchievements(list) {
+  const container = document.getElementById('achieveList');
+  const d = getData();
+  container.innerHTML = '';
+  list.forEach(a => {
+    const unlocked = d.achievements && d.achievements[a.id];
+    const div = document.createElement('div');
+    div.className = 'achieveItem ' + (unlocked?'unlocked':'locked');
+    div.innerHTML = '<div><div style="font-weight:700">'+a.name+'</div><div style="font-size:12px;color:#888">'+a.desc+'</div></div><div class="status">'+(unlocked?'✅ 已解锁':'🔒 未解锁')+'</div>';
+    container.appendChild(div);
+  });
+}
+</script>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let W, H, gameState = 'menu', score = 0, level = 1, platforms = [], ball = {};
+let charging = false, power = 0, ballY = 0, ballVY = 0, onPlatform = true, targetPlatform = 1;
+let jumps = 0, centerHits = 0, hasMagnet = false, totalJumps = 0;
+let gameLoopId;
+
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize); resize();
+
+function startGame() {
+  document.getElementById('startScreen').style.display = 'none';
+  gameState = 'playing'; score = 0; level = 1; jumps = 0; centerHits = 0; totalJumps = 0; hasMagnet = false;
+  platforms = [];
+  const startW = 100;
+  platforms.push({ x: W/2 - startW/2, y: H - 150, w: startW, h: 20, type: 'normal', color: '#A78BFA' });
+  platforms.push(genPlatform(0));
+  ball = { x: W/2, y: H - 170, r: 15, onPlatform: true };
+  updateUI(); gameLoopId = requestAnimationFrame(loop);
+}
+
+function restartGame() {
+  cancelAnimationFrame(gameLoopId);
+  closeModal('gameOverModal');
+  startGame();
+}
+
+function updateUI() {
+  document.getElementById('scoreDisplay').textContent = '得分: ' + score;
+  document.getElementById('levelDisplay').textContent = '关卡: ' + level;
+  updateTopBar();
+}
+
+function genPlatform(idx) {
+  const prev = platforms[idx];
+  const minGap = 80 + level * 10;
+  const maxGap = 180 + level * 20;
+  const gap = minGap + Math.random() * (maxGap - minGap);
+  const dir = Math.random() > 0.5 ? 1 : -1;
+  const w = Math.max(60, 120 - level * 5);
+  const x = Math.max(20, Math.min(W - w - 20, prev.x + dir * gap));
+  const y = prev.y - 80 - Math.random() * 40;
+  const types = ['normal', 'moving', 'rotating'];
+  const type = level >= 3 && Math.random() < 0.3 ? types[Math.floor(Math.random()*types.length)] : 'normal';
+  const isGolden = level >= 5 && Math.random() < 0.1;
+  return { x, y, w, h: 20, type, color: isGolden ? '#FFD700' : '#A78BFA', isGolden, speed: type === 'moving' ? (Math.random()*2+1) : 0, angle: 0 };
+}
+
+function update() {
+  // charging
+  if (charging && onPlatform) {
+    power = Math.min(power + 0.02, 1);
+  }
+
+  // ball physics
+  if (!onPlatform) {
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+    ball.vy += 0.3;
+
+    // check landing
+    const plat = platforms[targetPlatform];
+    if (plat) {
+      let px = plat.x, pw = plat.w;
+      if (plat.type === 'moving') { px = plat.x + Math.sin(Date.now()/1000 * plat.speed) * 50; }
+      if (plat.type === 'rotating') { pw = plat.w * Math.abs(Math.cos(plat.angle)); }
+
+      if (ball.y + ball.r >= plat.y && ball.y - ball.r <= plat.y + plat.h && ball.x >= px && ball.x <= px + pw) {
+        onPlatform = true;
+        ball.y = plat.y - ball.r;
+        const centerDist = Math.abs(ball.x - (px + pw/2));
+        const isCenter = centerDist < pw * 0.2;
+        const pts = plat.isGolden ? 5 : (isCenter ? 2 : 1);
+        score += pts; jumps++; totalJumps++;
+        if (isCenter) centerHits++;
+        addCoins(plat.isGolden ? 4 : pts);
+
+        if (hasMagnet) { ball.x = px + pw/2; hasMagnet = false; showToast('🧲 磁力吸附！'); }
+
+        // scroll
+        const offset = H/2 - plat.y;
+        platforms.forEach(p => p.y += offset);
+        ball.y += offset;
+
+        // add new platform
+        platforms.push(genPlatform(platforms.length - 1));
+        if (platforms.length > 5) platforms.shift();
+        targetPlatform = platforms.length - 1;
+
+        // level up
+        if (jumps > 0 && jumps % 10 === 0) {
+          level++;
+          showToast('🎉 进入第 ' + level + ' 关！');
+        }
+
+        updateUI();
+      }
+    }
+
+    // fall
+    if (ball.y > H + 50) {
+      gameOver(); return;
+    }
+  }
+
+  // update platforms
+  platforms.forEach(p => {
+    if (p.type === 'moving') p.x += Math.sin(Date.now()/1000 * p.speed) * 0.5;
+    if (p.type === 'rotating') p.angle += 0.02;
+  });
+}
+
+function draw() {
+  ctx.fillStyle = '#0c0c1a'; ctx.fillRect(0,0,W,H);
+
+  // grid
+  ctx.strokeStyle = 'rgba(0,248,255,0.03)'; ctx.lineWidth = 1;
+  for(let i=0;i<W;i+=50){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,H); ctx.stroke(); }
+  for(let i=0;i<H;i+=50){ ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(W,i); ctx.stroke(); }
+
+  // platforms
+  platforms.forEach((p, i) => {
+    let px = p.x, pw = p.w;
+    if (p.type === 'moving') px = p.x + Math.sin(Date.now()/1000 * p.speed) * 50;
+    if (p.type === 'rotating') pw = p.w * Math.abs(Math.cos(p.angle));
+
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color; ctx.shadowBlur = 15;
+    ctx.fillRect(px, p.y, pw, p.h);
+    ctx.shadowBlur = 0;
+
+    // center marker
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillRect(px + pw/2 - 5, p.y, 10, p.h);
+  });
+
+  // ball
+  ctx.fillStyle = '#FB7185';
+  ctx.shadowColor = '#FB7185'; ctx.shadowBlur = 20;
+  ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // power bar
+  if (charging) {
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(W/2 - 50, H - 40, 100, 8);
+    ctx.fillStyle = `hsl(${power * 120}, 100%, 50%)`;
+    ctx.fillRect(W/2 - 50, H - 40, 100 * power, 8);
+  }
+}
+
+function gameOver() {
+  gameState = 'over';
+  cancelAnimationFrame(gameLoopId);
+  setHigh('jump', score);
+  addCoins(score);
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('highScore').textContent = getHigh('jump');
+  openModal('gameOverModal'); cloudSave();
+}
+
+function loop() {
+  if (gameState !== 'playing') return;
+  update(); draw();
+  gameLoopId = requestAnimationFrame(loop);
+}
+
+function startCharge() { if (gameState === 'playing' && onPlatform) { charging = true; power = 0; } }
+function endCharge() {
+  if (!charging) return;
+  charging = false;
+  if (onPlatform) {
+    onPlatform = false;
+    const plat = platforms[targetPlatform];
+    const dx = (plat.x + plat.w/2) - ball.x;
+    const dist = Math.sqrt(dx*dx + 80*80);
+    const maxDist = 250;
+    const force = Math.min(power * maxDist / dist, 1.2);
+    ball.vx = dx / dist * force * 8;
+    ball.vy = -force * 12;
+  }
+}
+
+canvas.addEventListener('mousedown', startCharge);
+canvas.addEventListener('mouseup', endCharge);
+canvas.addEventListener('touchstart', e => { e.preventDefault(); startCharge(); }, {passive:false});
+canvas.addEventListener('touchend', e => { e.preventDefault(); endCharge(); }, {passive:false});
+
+const shopItems = [
+  {id:'pixel',name:'小球·像素',desc:'像素风格小球',price:150},
+  {id:'metal',name:'小球·金属',desc:'金属质感小球',price:150},
+  {id:'fire',name:'小球·火焰',desc:'火焰小球皮肤',price:150},
+  {id:'ripple',name:'跳板波纹',desc:'落点波纹特效',price:100},
+  {id:'magnet',name:'磁力道具',desc:'自动吸附至中心',price:200},
+];
+function openShop() { renderShop(shopItems, 'skins'); openModal('shopModal'); }
+function buyShopItem(btn, price, type, id) {
+  if (id === 'magnet') { if(spendCoins(price)){ hasMagnet = true; showToast('磁力已激活！'); closeModal('shopModal'); return; } }
+  if (spendCoins(price)) { unlock(type, id); btn.textContent='已拥有'; btn.disabled=true; btn.parentElement.classList.add('owned'); showToast('购买成功！'); }
+  else { showToast('金币不足！'); }
+}
+
+const achievements = [
+  {id:'center_10',name:'跳跳达人',desc:'连续跳中中心10次'},
+  {id:'long_jump',name:'远程跳跃',desc:'一次跳跃跨越最大间距'},
+  {id:'hundred_jumps',name:'百跳英雄',desc:'累计跳跃100次'},
+];
+function openAchievements() { renderAchievements(achievements); openModal('achieveModal'); }
+
+getData(); updateTopBar();
+</script>
+<script src="/shared/auth.js"></script>
+<script>
+// ===== 云端存档 =====
+async function cloudSave() {
+  if (!GameAuth.isLoggedIn()) return;
+  const d = getData();
+  await GameAuth.saveProgress('jump_jump', {
+    score: score,
+    highScore: getHigh('jump_jump'),
+    coins: d.coins,
+    timestamp: Date.now()
+  });
+}
+async function cloudLoad() {
+  if (!GameAuth.isLoggedIn()) return;
+  const result = await GameAuth.loadProgress('jump_jump');
+  if (result.success && result.data) {
+    const data = result.data;
+    if (data.coins !== undefined) {
+      const d = getData(); d.coins = data.coins; setData(d); updateTopBar();
+    }
+    if (data.highScore !== undefined) {
+      const d = getData(); d.highScores['jump_jump'] = data.highScore; setData(d);
+    }
+  }
+}
+window.addEventListener('load', cloudLoad);
+// ===== 云端存档结束 =====
+
+</script>
+</body>
+</html>
