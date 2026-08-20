@@ -1,5 +1,5 @@
 const GameAuth = (function() {
-  const API_BASE = '/api';
+  const API_BASE = 'https://game-eazy-worker.tbh0624@outlook.com.workers.dev';
 
   function getToken() {
     return localStorage.getItem('game_auth_token');
